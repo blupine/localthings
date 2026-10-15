@@ -457,6 +457,8 @@ async def test_links_only_prefixed_collection_discovers_wall_unit_swing(
     hass, transport, monkeypatch, prefixed_hrefs
 ):
     """The wall unit has swing even when the floor unit has no such href."""
+    from homeassistant.components.climate import ClimateEntityFeature
+
     from custom_components.localthings.climate import LocalThingsClimate
     from custom_components.localthings.registry.entities import ClimateDesc
     from custom_components.localthings.registry.identity import DeviceIdentity
@@ -526,6 +528,8 @@ async def test_links_only_prefixed_collection_discovers_wall_unit_swing(
     assert climates[_SUBDEVICE_ID].hvac_mode == "cool"
     assert climates[""].hvac_mode == "off"
     assert climates[""].swing_modes == []
+    assert not climates[""].supported_features & ClimateEntityFeature.SWING_MODE
+    assert climates[_SUBDEVICE_ID].supported_features & ClimateEntityFeature.SWING_MODE
     assert not coordinator.resource("/wind/direction/vs/0")
     assert coordinator.resource(f"/{_SUBDEVICE_ID}/wind/direction/vs/0") == direction
     assert f"/{_SUBDEVICE_ID}/wind/direction/vs/0" in coordinator._warm_hrefs
