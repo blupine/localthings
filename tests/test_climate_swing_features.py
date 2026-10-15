@@ -19,11 +19,15 @@ from tests.test_subdevice_discovery import _coordinator, _discover
 async def test_swing_fallback_channels_keep_their_controls(hass, fixture):
     coordinator = _coordinator(hass)
     await _discover(coordinator, fixture)
-    for bound in coordinator.bound:
-        if isinstance(bound.desc, ClimateDesc):
-            entity = LocalThingsClimate(coordinator, bound)
-            assert entity.swing_modes
-            assert entity.supported_features & ClimateEntityFeature.SWING_MODE
+    entities = [
+        LocalThingsClimate(coordinator, bound)
+        for bound in coordinator.bound
+        if isinstance(bound.desc, ClimateDesc)
+    ]
+    assert entities
+    for entity in entities:
+        assert entity.swing_modes
+        assert entity.supported_features & ClimateEntityFeature.SWING_MODE
 
 
 async def test_swing_feature_updates_when_options_arrive_later(hass):
@@ -31,9 +35,14 @@ async def test_swing_feature_updates_when_options_arrive_later(hass):
     await _discover(coordinator, "airconditioner_fac_bora")
     bound = next(b for b in coordinator.bound if isinstance(b.desc, ClimateDesc))
     entity = LocalThingsClimate(coordinator, bound)
+    entity.hass = hass
     assert entity.swing_modes == []
     before = entity.supported_features
     assert not before & ClimateEntityFeature.SWING_MODE
+    capabilities = entity.capability_attributes
+    assert capabilities is not None
+    assert "swing_modes" not in capabilities
+    assert "swing_mode" not in entity.state_attributes
 
     coordinator._observe.apply(
         "/wind/direction/vs/0",
@@ -45,3 +54,17 @@ async def test_swing_feature_updates_when_options_arrive_later(hass):
     )
     assert entity.swing_modes == ["off", "vertical"]
     assert entity.supported_features == before | ClimateEntityFeature.SWING_MODE
+    capabilities = entity.capability_attributes
+    assert capabilities is not None
+    assert capabilities["swing_modes"] == ["off", "vertical"]
+    assert entity.state_attributes["swing_mode"] == "off"
+
+    # Partial poll/Observe updates omit supportedModes, not withdraw them.
+    coordinator._observe.apply(
+        "/wind/direction/vs/0", {"x.com.samsung.da.modes": "Up_And_Low"}, source="observe"
+    )
+    capabilities = entity.capability_attributes
+    assert capabilities is not None
+    assert capabilities["swing_modes"] == ["off", "vertical"]
+    assert entity.supported_features == before | ClimateEntityFeature.SWING_MODE
+    assert entity.state_attributes["swing_mode"] == "vertical"
